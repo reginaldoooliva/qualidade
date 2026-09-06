@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Env
+.env
+.env.local
+
+# Claude Code (config local de permissões, não deve ser compartilhado)
+.claude/settings.local.json
+
+# SQLite (dev local sem Docker)
+*.db
+*.db-journal
+
+# Node
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Logs
+*.log
+
+# Backups de banco
+backend/backups/
