@@ -10,7 +10,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    database_url: str = "sqlite:///./dev.db"
+    database_url: str
     jwt_secret: str = "dev-secret-nao-usar-em-producao"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 600
