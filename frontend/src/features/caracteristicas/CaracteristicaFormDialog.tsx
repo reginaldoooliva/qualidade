@@ -32,6 +32,7 @@ import {
   useCreateCaracteristica,
   useUpdateCaracteristica,
 } from "@/features/caracteristicas/api"
+import { useTiposInstrumento } from "@/features/tipos_instrumento/api"
 import { getApiError } from "@/lib/api-client"
 import type { Caracteristica } from "@/types/api"
 
@@ -39,13 +40,6 @@ const UNIDADE_LABEL: Record<string, string> = {
   mm: "mm",
   cm: "cm",
   polegada: "polegada",
-}
-
-const INSTRUMENTO_LABEL: Record<string, string> = {
-  paquimetro: "Paquímetro",
-  micrometro: "Micrômetro",
-  relogio_comparador: "Relógio comparador",
-  outro: "Outro",
 }
 
 const schema = z
@@ -56,7 +50,7 @@ const schema = z
     tol_superior: z.coerce.number().min(0, "Não pode ser negativa"),
     tol_inferior: z.coerce.number().min(0, "Não pode ser negativa"),
     unidade: z.enum(["mm", "cm", "polegada"]),
-    instrumento: z.enum(["paquimetro", "micrometro", "relogio_comparador", "outro"]).optional(),
+    tipo_instrumento_id: z.coerce.number().optional(),
     casas_decimais: z.coerce.number().int().min(0).max(6),
   })
   .refine((v) => v.tol_superior > 0 || v.tol_inferior > 0, {
@@ -73,7 +67,7 @@ const VALORES_VAZIOS: FormValues = {
   tol_superior: 0,
   tol_inferior: 0,
   unidade: "mm",
-  instrumento: undefined,
+  tipo_instrumento_id: undefined,
   casas_decimais: 3,
 }
 
@@ -92,6 +86,7 @@ export function CaracteristicaFormDialog({
   const createCaracteristica = useCreateCaracteristica(etapaId)
   const updateCaracteristica = useUpdateCaracteristica(caracteristica?.id ?? 0, etapaId)
   const mutation = isEdicao ? updateCaracteristica : createCaracteristica
+  const { data: tiposInstrumento } = useTiposInstrumento({ status: "ativo" })
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -109,7 +104,7 @@ export function CaracteristicaFormDialog({
               tol_superior: caracteristica.tol_superior,
               tol_inferior: caracteristica.tol_inferior,
               unidade: caracteristica.unidade,
-              instrumento: caracteristica.instrumento ?? undefined,
+              tipo_instrumento_id: caracteristica.tipo_instrumento_id ?? undefined,
               casas_decimais: caracteristica.casas_decimais,
             }
           : VALORES_VAZIOS
@@ -263,21 +258,28 @@ export function CaracteristicaFormDialog({
               />
               <FormField
                 control={form.control}
-                name="instrumento"
+                name="tipo_instrumento_id"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Instrumento</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value} items={INSTRUMENTO_LABEL}>
+                    <Select
+                      onValueChange={(value) => field.onChange(Number(value))}
+                      value={field.value !== undefined ? String(field.value) : undefined}
+                      items={Object.fromEntries(
+                        (tiposInstrumento ?? []).map((tipo) => [String(tipo.id), tipo.nome])
+                      )}
+                    >
                       <FormControl>
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Selecione" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="paquimetro">Paquímetro</SelectItem>
-                        <SelectItem value="micrometro">Micrômetro</SelectItem>
-                        <SelectItem value="relogio_comparador">Relógio comparador</SelectItem>
-                        <SelectItem value="outro">Outro</SelectItem>
+                        {tiposInstrumento?.map((tipo) => (
+                          <SelectItem key={tipo.id} value={String(tipo.id)}>
+                            {tipo.nome}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <FormMessage />

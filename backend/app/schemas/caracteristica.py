@@ -1,6 +1,7 @@
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.peca import InstrumentoMedicao, StatusCadastro, UnidadeMedida
+from app.models.peca import StatusCadastro, UnidadeMedida
+from app.schemas.tipo_instrumento import TipoInstrumentoRead
 
 
 class CaracteristicaBase(BaseModel):
@@ -10,7 +11,7 @@ class CaracteristicaBase(BaseModel):
     tol_superior: float = Field(ge=0)
     tol_inferior: float = Field(ge=0)
     unidade: UnidadeMedida = UnidadeMedida.MM
-    instrumento: InstrumentoMedicao | None = None
+    tipo_instrumento_id: int | None = None
     casas_decimais: int = Field(default=3, ge=0, le=6)
 
 
@@ -25,7 +26,7 @@ class CaracteristicaUpdate(BaseModel):
     tol_superior: float | None = Field(default=None, ge=0)
     tol_inferior: float | None = Field(default=None, ge=0)
     unidade: UnidadeMedida | None = None
-    instrumento: InstrumentoMedicao | None = None
+    tipo_instrumento_id: int | None = None
     casas_decimais: int | None = Field(default=None, ge=0, le=6)
     status: StatusCadastro | None = None
 
@@ -36,5 +37,6 @@ class CaracteristicaRead(CaracteristicaBase):
     id: int
     etapa_id: int
     status: StatusCadastro
+    tipo_instrumento: TipoInstrumentoRead | None = None
     lse: float
     lie: float

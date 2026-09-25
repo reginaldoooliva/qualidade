@@ -10,8 +10,9 @@ venv/
 .env
 .env.local
 
-# Claude Code (config local de permissões, não deve ser compartilhado)
+# Claude Code (config/estado local, não deve ser compartilhado)
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
 
 # SQLite (dev local sem Docker)
 *.db

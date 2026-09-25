@@ -1,8 +1,10 @@
 # Especificação Técnica
 ## Sistema de Coleta de Medidas e Análise de Capabilidade (Cp/Cpk)
 
-**Versão:** 1.1 (todas as decisões de escopo validadas — pronta para orientar o desenvolvimento)
-**Contexto:** Aplicativo web interno, rodando em servidor local da empresa, para cadastro de peças, coleta manual de medidas dimensionais, cálculo automático de Cp/Cpk e tratamento de Não Conformidades.
+**Versão:** 1.2 (MVP original — seções 1 a 7 — implementado e validado; seção 8 documenta as
+extensões pós-MVP de Não Conformidade: tipo de RNC/fornecedor/máquina/fotos e Tratativas por
+Departamento)
+**Contexto:** Aplicativo web interno, rodando em servidor local da empresa, para cadastro de peças, coleta manual de medidas dimensionais, cálculo automático de Cp/Cpk e tratamento de Não Conformidades. O banco de dados é hospedado no Neon (Postgres gerenciado) — ver seção 4.
 
 ---
 
@@ -207,6 +209,11 @@ Fluxo:
 
 **Equipe inicial prevista:** 3 Operadores, 1 Analista de Qualidade, 1 Gestor de Qualidade (número de usuários deve crescer — o cadastro de usuários não pode ter limite fixo).
 
+> **Atualizado (seção 8.3):** o usuário ganhou um campo opcional **Departamento** (não é um
+> perfil novo, é ortogonal aos três perfis abaixo) — usado só para as Tratativas por Departamento.
+
+
+
 | Perfil | Permissões |
 |---|---|
 | Operador | Realizar coletas, abrir RNC (sinalizar problema) |
@@ -243,9 +250,15 @@ A RNC em si trata do registro do problema e da **disposição da peça** (o que 
 | Quantidade de peças afetadas | Numérico | Sim | |
 | Classificação | Seleção | Sim | Crítica / Maior / Menor |
 | Origem | Seleção | Sim | Processo, Matéria-prima, Projeto/Desenho, Instrumento de medição, Mão de obra, Outro |
-| Evidência (foto/anexo) | Arquivo | Não | |
+| Evidência (foto/anexo) | Arquivo | Não | **Implementado (seção 8.2):** upload de 1+ fotos após a abertura, jpeg/png/webp, máx. 5 MB cada, 8 fotos por RNC |
 | Aberto por | Auto (usuário logado) | Auto | |
 | Data de abertura | Auto | Auto | |
+
+> **Atualizado (seção 8.2):** a tabela acima é só o núcleo comum a toda RNC. Desde a extensão de
+> "tipo de RNC", a tela de abertura pede primeiro o **Tipo** (Processo interno / Recebimento de
+> fornecedor / Devolução de cliente), que libera um bloco de campos condicionais adicional —
+> Máquina/Operador(es)/Setup/Detecção no tipo Processo, Fornecedor/Nº NF no tipo Fornecedor,
+> Cliente/Vendedor/NF/Data de emissão no tipo Cliente. Ver seção 8.2 para a tabela completa.
 
 **Tela: Analisar e Tratar RNC** (Qualidade)
 
@@ -260,7 +273,7 @@ A RNC em si trata do registro do problema e da **disposição da peça** (o que 
 - Uma RNC **não pode existir** sem estar vinculada a uma peça específica (ordem e etapa são opcionais).
 - É possível avançar do status "Em análise" para "Em tratamento" e até **encerrar a RNC** sem que haja causa raiz e ação corretiva preenchidas — desde que a disposição da peça esteja definida.
 - Se o analista marcar o checkbox "Necessário Plano de Ação", o sistema cria um Plano de Ação vinculado, pré-preenchido com os dados da RNC (peça, ordem, etapa, descrição do problema).
-- O encerramento da RNC é independente do andamento do Plano de Ação vinculado — a RNC trata da disposição imediata da peça, enquanto o Plano de Ação trata da causa raiz no seu próprio ritmo.
+- O encerramento da RNC é independente do andamento do Plano de Ação vinculado — a RNC trata da disposição imediata da peça, enquanto o Plano de Ação trata da causa raiz no seu próprio ritmo. **Atualizado (seção 8.3):** isso não vale para as Tratativas por Departamento — encerrar a RNC fica bloqueado enquanto houver uma tratativa departamental pendente (mas Qualidade pode forçar).
 - Uma RNC pode ser aberta a partir da tela de Coleta (quando a rodada é encerrada por não conformidade ou uma medição fica fora de especificação) ou diretamente pelo menu de Não Conformidade, sem depender de uma coleta.
 - Todo o histórico de mudança de status da RNC fica registrado (quem, quando, o quê), para auditoria.
 
@@ -398,7 +411,7 @@ HistoricoStatusNC
 
 ## 4. Requisitos Não Funcionais
 
-- **Ambiente:** servidor local na rede da empresa (ex: `http://192.168.x.x`), acessível via navegador em PCs e tablets, sem depender de internet.
+- **Ambiente:** servidor local na rede da empresa (ex: `http://192.168.x.x`), acessível via navegador em PCs e tablets. **Atualizado:** o banco de dados passou a ser hospedado no Neon (Postgres gerenciado na nuvem), então o sistema hoje **depende de conexão de internet** para funcionar — trade-off aceito conscientemente em troca de não precisar manter Postgres via Docker no servidor da fábrica. Isso substitui o requisito original de operar totalmente offline.
 - **Responsivo:** interface adaptada para tela de tablet/celular (chão de fábrica) e desktop (escritório).
 - **Backup:** rotina de backup do banco de dados (diário, automático).
 - **Rastreabilidade:** log de alterações em cadastros e reabertura de coletas (quem, quando).
@@ -433,8 +446,143 @@ Todas as questões de escopo levantadas durante o planejamento foram validadas:
 
 Com o escopo validado, o documento está pronto para orientar a fase de desenvolvimento do MVP.
 
+**Decisões validadas nas extensões pós-MVP (seção 8):**
+
+| # | Tema | Decisão |
+|---|---|---|
+| 11 | Escopo de origem da RNC | RNC passa a ter 3 tipos (Fornecedor / Processo interno / Cliente), cada um com campos próprios, em vez de só processo interno |
+| 12 | Origem × Detecção | São campos separados: Origem = por que o defeito aconteceu; Detecção = onde foi pega (interno/cliente/fornecedor). Detecção é calculada automaticamente pelo sistema fora do tipo Processo |
+| 13 | Operador(es) e Máquina na RNC | Operador = usuário(s) do sistema (lista, opcional); Máquina = cadastro estruturado novo (não texto livre); ambos só no tipo Processo e ambos opcionais |
+| 14 | Fornecedor na RNC | Cadastro estruturado novo (código, nome, CNPJ), não texto livre |
+| 15 | Fotos na RNC | Essencial; guardadas como bytea no banco (Neon), não em disco — evita criar infraestrutura de armazenamento de arquivo nova |
+| 16 | Ações departamentais (ex.: Sucata → PCP) | Conceito novo e separado do Plano de Ação; uma RNC pode ter várias; atribuídas só no tratamento (nunca na abertura) |
+| 17 | Quem conclui uma ação departamental | Qualquer usuário do departamento atribuído (qualquer perfil) ou Analista/Gestor; conclusão exige observação/referência obrigatória |
+| 18 | Encerramento da RNC com ação departamental pendente | Bloqueado por padrão; Analista/Gestor podem remover a pendência ou forçar o encerramento mesmo assim (fica auditado) |
+
 ## 7. Próximos Passos Sugeridos
 
 1. Validar este documento uma última vez na íntegra (pode haver pequenos ajustes ao ver as telas funcionando).
 2. Priorizar o MVP: sugestão de ordem — Cadastro de Peça/Etapa/Característica → Coleta de Dados → Cálculo Cp/Cpk → Módulo de Não Conformidade (RNC + Plano de Ação) → Carta de Controle → Relatórios.
 3. Iniciar a modelagem do banco de dados e o desenvolvimento do backend (FastAPI + PostgreSQL, conforme sugerido).
+
+---
+
+## 8. Extensões pós-MVP — Não Conformidade estendida e Tratativas por Departamento
+
+As seções 1 a 7 acima descrevem o MVP original (Fases 0-6), implementado e validado. Esta seção
+documenta duas extensões feitas depois, mantendo o mesmo nível de detalhe.
+
+### 8.1 Cadastros auxiliares: Fornecedor, Máquina, Departamento
+
+Três cadastros novos, todos seguindo o mesmo padrão de Peça (código único + campo descritivo +
+status ativo/inativo), com tela própria de lista + criar/editar + inativar:
+
+| Cadastro | Campos | Observações |
+|---|---|---|
+| **Fornecedor** | Código (único), Nome, CNPJ (opcional), Status | Usado no tipo "Recebimento de fornecedor" da RNC |
+| **Máquina** | Código (único), Descrição, Status | Usado (opcional) no tipo "Processo interno" da RNC |
+| **Departamento** | Código (único), Nome, Status | Usado nas Tratativas por Departamento (seção 8.3) e no campo Departamento do Usuário |
+
+### 8.2 RNC — Tipo, Detecção, Fotos, Operadores e Máquina
+
+A tela de Abrir RNC (seção 2.7) ganhou um campo obrigatório **Tipo de RNC**, escolhido antes de
+tudo, que determina quais campos adicionais aparecem:
+
+| Tipo de RNC | Quando usar | Campos adicionais |
+|---|---|---|
+| **Processo interno** (default) | Não conformidade encontrada no processo produtivo interno | Máquina (opcional), Operador(es) envolvido(s) (opcional, lista de usuários), Setup? (checkbox), Detecção (editável) |
+| **Recebimento de fornecedor** | Matéria-prima/peça recebida fora de especificação | Fornecedor (obrigatório, cadastro da seção 8.1), Nº da NF de entrada (opcional) |
+| **Devolução de cliente** | Peça devolvida pelo cliente | Cliente (obrigatório, texto), Vendedor (opcional), Nº da NF (opcional), Data de emissão (opcional) |
+
+**Campos comuns a todos os tipos**, além dos já existentes na seção 2.7:
+
+| Campo | Tipo | Obrigatório | Observações |
+|---|---|---|---|
+| Modo de falha | Texto curto | Não | Ex: trinca, rebarba, fora de medida — útil para análise estatística de tipos de defeito |
+| Detecção | Seleção (interno/cliente/fornecedor) | Não | Onde a NC foi encontrada. **Calculada automaticamente pelo sistema** para os tipos Fornecedor (sempre "Interno") e Cliente (sempre "Cliente") — só é uma escolha livre do usuário no tipo Processo interno |
+| Fotos | Upload de 1+ arquivos | Não | jpeg/png/webp, máx. 5 MB por arquivo, até 8 fotos por RNC; guardadas como dado binário no próprio banco (não em disco) |
+
+**Regras:**
+- `Origem` (por que o defeito aconteceu — seção 2.7 original) e `Detecção` (onde foi pega) são
+  perguntas diferentes e coexistem: uma RNC de processo interno pode ter origem "Mão de obra" e
+  detecção "Cliente" (o defeito escapou até o cliente antes de ser percebido).
+- O valor de Detecção enviado pelo cliente é ignorado pelo backend fora do tipo Processo — sempre
+  recalculado a partir do tipo, para evitar inconsistência (ex: alguém marcar detecção "Cliente"
+  numa RNC de recebimento de fornecedor).
+- Operador(es) e Máquina são sempre opcionais, mesmo no tipo Processo — quem abre a RNC nem
+  sempre sabe quem operou a máquina no momento.
+
+### 8.3 Tratativas por Departamento
+
+Conceito **novo e separado** do Plano de Ação (seção 2.8) — não usa causa raiz, Ishikawa/5
+Porquês, nem Ação Corretiva. Serve para atribuir e rastrear a execução de uma disposição da RNC
+(ex: "Sucata") por um departamento específico (ex: PCP dar baixa na ordem de produção), algo que
+a versão original da RNC não conseguia expressar.
+
+**Quando é atribuída:** só durante o tratamento da RNC (tela "Analisar e Tratar RNC", seção 2.7),
+nunca na abertura — quem abre a RNC normalmente não sabe ainda quais departamentos precisam agir.
+
+**Tela: Tratativas por Departamento** (seção da tela de detalhe da RNC, ao lado do Plano de Ação)
+
+| Campo | Tipo | Obrigatório | Observações |
+|---|---|---|---|
+| Departamento | Seleção (cadastro da seção 8.1) | Sim | |
+| Descrição | Texto | Sim | O que precisa ser feito, ex: "Dar baixa da peça sucateada na ordem OP-1234" |
+| Status | Auto | Auto | Pendente → Concluída |
+| Observação de conclusão | Texto | Sim, ao concluir | Referência/comprovante, ex: "Baixa registrada, guia GB-4521" |
+
+Uma RNC pode ter **várias** tratativas departamentais simultâneas (ex: uma pro PCP e outra pra
+Compras), cada uma com seu próprio ciclo pendente → concluída.
+
+**Tela: Tratativas** (menu lateral, nova) — fila de tratativas pendentes em todas as RNCs, com
+filtro por departamento. Por padrão, mostra só as do departamento do usuário logado; Analista e
+Gestor de Qualidade veem/filtram todos os departamentos (visão de supervisão).
+
+**Regras:**
+- Quem pode marcar uma tratativa como concluída: qualquer usuário cujo Departamento (seção 2.6)
+  seja igual ao Departamento da tratativa, **ou** Analista/Gestor de Qualidade (que podem concluir
+  em nome de qualquer departamento).
+- Concluir exige preencher a Observação de conclusão — não existe "concluir" sem justificativa.
+- Uma tratativa concluída não pode ser removida (preserva o rastro de auditoria); uma tratativa
+  ainda pendente pode ser removida por Analista/Gestor (ex: percebeu que não era necessária).
+- **O encerramento da RNC fica bloqueado enquanto houver ao menos uma tratativa departamental
+  pendente.** Analista/Gestor têm duas saídas: remover a(s) tratativa(s) pendente(s), ou forçar o
+  encerramento mesmo assim (a interface avisa quantas tratativas continuam pendentes antes de
+  confirmar; a ação fica registrada no histórico de auditoria da RNC).
+- Todo o ciclo de uma tratativa (criação, conclusão, remoção) fica registrado no histórico de
+  auditoria da RNC, igual às demais mudanças de status.
+
+### 8.4 Atualização ao Modelo de Dados (complementa a seção 3)
+
+```
+Fornecedor
+ - id, codigo (unico), nome, cnpj (nullable), status
+
+Maquina
+ - id, codigo (unico), descricao, status
+
+Departamento
+ - id, codigo (unico), nome, status
+
+Usuario
+ - id, nome, login (unico), senha_hash, perfil (operador/analista_qualidade/gestor_qualidade),
+   status, departamento_id (FK, nullable)
+
+NaoConformidade (campos adicionados aos da seção 3)
+ - tipo (processo/fornecedor/cliente, default processo)
+ - deteccao (interno/cliente/fornecedor, nullable — calculado pelo backend fora do tipo processo)
+ - modo_falha (nullable), setup (boolean)
+ - maquina_id (FK, nullable), fornecedor_id (FK, nullable), numero_nf_entrada (nullable)
+ - cliente, vendedor, numero_nf, data_emissao_nf (todos nullable, só tipo cliente)
+ - operadores: N:N com Usuario (tabela de associação nc_operadores)
+ - fotos: 1:N com NaoConformidadeFoto
+
+NaoConformidadeFoto
+ - id, nc_id (FK), nome_arquivo, content_type, tamanho_bytes, conteudo (binário),
+   enviado_por (FK Usuario)
+
+AcaoDepartamental
+ - id, nc_id (FK), departamento_id (FK), descricao, status (pendente/concluida),
+   observacao_conclusao (nullable), criado_por (FK Usuario),
+   concluido_por (FK Usuario, nullable), concluido_em (nullable), criado_em
+```

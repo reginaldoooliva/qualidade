@@ -179,6 +179,197 @@ def test_listar_filtra_por_status(client, auth_headers, peca_pronta):
     assert all(item["status"] == "aberta" for item in resposta.json())
 
 
+def test_abrir_rnc_tipo_fornecedor_sem_fornecedor_id_e_rejeitada(client, auth_headers, peca_pronta):
+    headers = auth_headers(Perfil.OPERADOR)
+    resposta = client.post(
+        "/api/v1/nao-conformidades",
+        json={
+            "tipo": "fornecedor",
+            "peca_id": peca_pronta["id"],
+            "descricao_problema": "Lote recebido fora de especificação",
+            "quantidade_afetada": 5,
+            "classificacao": "maior",
+            "origem": "materia_prima",
+        },
+        headers=headers,
+    )
+    assert resposta.status_code == 422
+
+
+def test_abrir_rnc_tipo_cliente_sem_cliente_e_rejeitada(client, auth_headers, peca_pronta):
+    headers = auth_headers(Perfil.OPERADOR)
+    resposta = client.post(
+        "/api/v1/nao-conformidades",
+        json={
+            "tipo": "cliente",
+            "peca_id": peca_pronta["id"],
+            "descricao_problema": "Devolução de cliente",
+            "quantidade_afetada": 3,
+            "classificacao": "maior",
+            "origem": "processo",
+        },
+        headers=headers,
+    )
+    assert resposta.status_code == 422
+
+
+def test_abrir_rnc_tipo_fornecedor_calcula_deteccao_interno(client, auth_headers, peca_pronta):
+    headers = auth_headers(Perfil.ANALISTA_QUALIDADE)
+    fornecedor = client.post(
+        "/api/v1/fornecedores", json={"codigo": "FORN-X", "nome": "Fornecedor X"}, headers=headers
+    ).json()
+    resposta = client.post(
+        "/api/v1/nao-conformidades",
+        json={
+            "tipo": "fornecedor",
+            "peca_id": peca_pronta["id"],
+            "fornecedor_id": fornecedor["id"],
+            "numero_nf_entrada": "NF-123",
+            "descricao_problema": "Lote recebido fora de especificação",
+            "quantidade_afetada": 5,
+            "classificacao": "maior",
+            "origem": "materia_prima",
+            "deteccao": "cliente",  # deve ser ignorado e sobrescrito pelo backend
+        },
+        headers=headers,
+    )
+    assert resposta.status_code == 200, resposta.text
+    corpo = resposta.json()
+    assert corpo["deteccao"] == "interno"
+    assert corpo["fornecedor"]["codigo"] == "FORN-X"
+
+
+def test_abrir_rnc_tipo_cliente_calcula_deteccao_cliente(client, auth_headers, peca_pronta):
+    headers = auth_headers(Perfil.OPERADOR)
+    resposta = client.post(
+        "/api/v1/nao-conformidades",
+        json={
+            "tipo": "cliente",
+            "peca_id": peca_pronta["id"],
+            "cliente": "Cliente Alfa",
+            "vendedor": "Fulano",
+            "numero_nf": "NF-999",
+            "descricao_problema": "Devolução de cliente",
+            "quantidade_afetada": 3,
+            "classificacao": "maior",
+            "origem": "processo",
+        },
+        headers=headers,
+    )
+    assert resposta.status_code == 200, resposta.text
+    corpo = resposta.json()
+    assert corpo["deteccao"] == "cliente"
+    assert corpo["cliente"] == "Cliente Alfa"
+
+
+def test_abrir_rnc_tipo_processo_com_operadores_maquina_setup(client, auth_headers, peca_pronta):
+    headers = auth_headers(Perfil.ANALISTA_QUALIDADE)
+    maquina = client.post("/api/v1/maquinas", json={"codigo": "MAQ-X", "descricao": "Torno X"}, headers=headers).json()
+    operador_id = client.get("/api/v1/usuarios", headers=headers).json()[0]["id"]
+
+    resposta = client.post(
+        "/api/v1/nao-conformidades",
+        json={
+            "tipo": "processo",
+            "peca_id": peca_pronta["id"],
+            "maquina_id": maquina["id"],
+            "operadores_ids": [operador_id],
+            "setup": True,
+            "deteccao": "interno",
+            "descricao_problema": "Problema no processo",
+            "quantidade_afetada": 1,
+            "classificacao": "menor",
+            "origem": "processo",
+        },
+        headers=headers,
+    )
+    assert resposta.status_code == 200, resposta.text
+    corpo = resposta.json()
+    assert corpo["setup"] is True
+    assert corpo["deteccao"] == "interno"
+    assert corpo["maquina"]["codigo"] == "MAQ-X"
+    assert len(corpo["operadores"]) == 1
+    assert corpo["operadores"][0]["id"] == operador_id
+
+
+def test_upload_e_download_de_foto(client, auth_headers, peca_pronta):
+    headers = auth_headers(Perfil.OPERADOR)
+    nc = client.post(
+        "/api/v1/nao-conformidades",
+        json={
+            "peca_id": peca_pronta["id"],
+            "descricao_problema": "Problema",
+            "quantidade_afetada": 1,
+            "classificacao": "menor",
+            "origem": "processo",
+        },
+        headers=headers,
+    ).json()
+
+    conteudo_fake_png = b"\x89PNG\r\n\x1a\n" + b"0" * 100
+    resposta = client.post(
+        f"/api/v1/nao-conformidades/{nc['id']}/fotos",
+        files=[("arquivos", ("defeito.png", conteudo_fake_png, "image/png"))],
+        headers=headers,
+    )
+    assert resposta.status_code == 201, resposta.text
+    foto = resposta.json()[0]
+    assert foto["nome_arquivo"] == "defeito.png"
+    assert foto["tamanho_bytes"] == len(conteudo_fake_png)
+
+    resposta = client.get(f"/api/v1/nao-conformidades/{nc['id']}/fotos/{foto['id']}", headers=headers)
+    assert resposta.status_code == 200
+    assert resposta.content == conteudo_fake_png
+    assert resposta.headers["content-type"] == "image/png"
+
+
+def test_upload_foto_formato_nao_permitido_e_rejeitado(client, auth_headers, peca_pronta):
+    headers = auth_headers(Perfil.OPERADOR)
+    nc = client.post(
+        "/api/v1/nao-conformidades",
+        json={
+            "peca_id": peca_pronta["id"],
+            "descricao_problema": "Problema",
+            "quantidade_afetada": 1,
+            "classificacao": "menor",
+            "origem": "processo",
+        },
+        headers=headers,
+    ).json()
+
+    resposta = client.post(
+        f"/api/v1/nao-conformidades/{nc['id']}/fotos",
+        files=[("arquivos", ("laudo.pdf", b"%PDF-1.4 fake", "application/pdf"))],
+        headers=headers,
+    )
+    assert resposta.status_code == 400
+    assert resposta.json()["code"] == "FOTO_FORMATO_INVALIDO"
+
+
+def test_upload_foto_tamanho_excedido_e_rejeitado(client, auth_headers, peca_pronta):
+    headers = auth_headers(Perfil.OPERADOR)
+    nc = client.post(
+        "/api/v1/nao-conformidades",
+        json={
+            "peca_id": peca_pronta["id"],
+            "descricao_problema": "Problema",
+            "quantidade_afetada": 1,
+            "classificacao": "menor",
+            "origem": "processo",
+        },
+        headers=headers,
+    ).json()
+
+    conteudo_grande = b"0" * (5 * 1024 * 1024 + 1)
+    resposta = client.post(
+        f"/api/v1/nao-conformidades/{nc['id']}/fotos",
+        files=[("arquivos", ("grande.png", conteudo_grande, "image/png"))],
+        headers=headers,
+    )
+    assert resposta.status_code == 400
+    assert resposta.json()["code"] == "FOTO_TAMANHO_EXCEDIDO"
+
+
 def test_indicadores(client, auth_headers, peca_pronta):
     headers_op = auth_headers(Perfil.OPERADOR)
     client.post(

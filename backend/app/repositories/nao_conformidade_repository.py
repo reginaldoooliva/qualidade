@@ -3,7 +3,14 @@ from datetime import date, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.models.nao_conformidade import ClassificacaoNC, NaoConformidade, OrigemNC, StatusNC
+from app.models.nao_conformidade import (
+    AcaoDepartamental,
+    ClassificacaoNC,
+    NaoConformidade,
+    NaoConformidadeFoto,
+    OrigemNC,
+    StatusNC,
+)
 from app.models.plano_acao import PlanoDeAcao, StatusPlanoAcao
 
 
@@ -12,6 +19,13 @@ def _com_relacionamentos(stmt):
         selectinload(NaoConformidade.peca),
         selectinload(NaoConformidade.etapa),
         selectinload(NaoConformidade.caracteristica),
+        selectinload(NaoConformidade.maquina),
+        selectinload(NaoConformidade.fornecedor),
+        selectinload(NaoConformidade.operadores),
+        selectinload(NaoConformidade.fotos),
+        selectinload(NaoConformidade.acoes_departamentais).selectinload(AcaoDepartamental.departamento),
+        selectinload(NaoConformidade.acoes_departamentais).selectinload(AcaoDepartamental.criado_por),
+        selectinload(NaoConformidade.acoes_departamentais).selectinload(AcaoDepartamental.concluido_por),
         selectinload(NaoConformidade.responsavel_analise),
         selectinload(NaoConformidade.aberto_por),
         selectinload(NaoConformidade.planos_acao),
@@ -78,6 +92,22 @@ def update(db: Session, nc: NaoConformidade) -> NaoConformidade:
     db.commit()
     db.refresh(nc)
     return nc
+
+
+def add_foto(db: Session, foto: NaoConformidadeFoto) -> NaoConformidadeFoto:
+    db.add(foto)
+    db.commit()
+    db.refresh(foto)
+    return foto
+
+
+def get_foto(db: Session, foto_id: int) -> NaoConformidadeFoto | None:
+    return db.get(NaoConformidadeFoto, foto_id)
+
+
+def delete_foto(db: Session, foto: NaoConformidadeFoto) -> None:
+    db.delete(foto)
+    db.commit()
 
 
 def indicadores(db: Session) -> dict:

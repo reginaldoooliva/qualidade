@@ -1,7 +1,7 @@
 import enum
 
-from sqlalchemy import Enum, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import Enum, ForeignKey, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.permissions import Perfil
 from app.models.base import Base, TimestampMixin
@@ -23,3 +23,8 @@ class Usuario(TimestampMixin, Base):
     status: Mapped[StatusUsuario] = mapped_column(
         Enum(StatusUsuario, name="status_usuario"), nullable=False, default=StatusUsuario.ATIVO
     )
+    departamento_id: Mapped[int | None] = mapped_column(
+        ForeignKey("departamentos.id", ondelete="SET NULL"), nullable=True
+    )
+
+    departamento: Mapped["Departamento | None"] = relationship()  # noqa: F821

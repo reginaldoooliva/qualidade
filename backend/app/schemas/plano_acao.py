@@ -109,6 +109,7 @@ class EventoHistorico(BaseModel):
 
 class PlanoDeAcaoDetalhe(PlanoDeAcaoRead):
     numero_rnc: str = ""
+    descricao_problema: str = ""
     acoes_corretivas: list[AcaoCorretivaRead]
     causas_ishikawa: list[CausaIshikawaRead]
     causas_5porques: list[Causa5PorquesRead]

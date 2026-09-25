@@ -17,13 +17,6 @@ class UnidadeMedida(str, enum.Enum):
     POLEGADA = "polegada"
 
 
-class InstrumentoMedicao(str, enum.Enum):
-    PAQUIMETRO = "paquimetro"
-    MICROMETRO = "micrometro"
-    RELOGIO_COMPARADOR = "relogio_comparador"
-    OUTRO = "outro"
-
-
 class Peca(TimestampMixin, Base):
     __tablename__ = "pecas"
 
@@ -77,8 +70,8 @@ class Caracteristica(TimestampMixin, Base):
     unidade: Mapped[UnidadeMedida] = mapped_column(
         Enum(UnidadeMedida, name="unidade_medida"), nullable=False, default=UnidadeMedida.MM
     )
-    instrumento: Mapped[InstrumentoMedicao | None] = mapped_column(
-        Enum(InstrumentoMedicao, name="instrumento_medicao"), nullable=True
+    tipo_instrumento_id: Mapped[int | None] = mapped_column(
+        ForeignKey("tipos_instrumento.id", ondelete="RESTRICT"), nullable=True
     )
     casas_decimais: Mapped[int] = mapped_column(nullable=False, default=3)
     status: Mapped[StatusCadastro] = mapped_column(
@@ -86,6 +79,7 @@ class Caracteristica(TimestampMixin, Base):
     )
 
     etapa: Mapped["Etapa"] = relationship(back_populates="caracteristicas")
+    tipo_instrumento: Mapped["TipoInstrumento | None"] = relationship()
 
     @property
     def lse(self) -> float:

@@ -50,10 +50,12 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center bg-gradient-to-br from-indigo-50 via-background to-emerald-50 p-4 dark:from-background dark:via-background dark:to-background">
+    <div
+      className="flex min-h-svh items-center justify-center bg-background p-4 bg-[length:28px_28px] bg-[image:linear-gradient(color-mix(in_oklab,var(--primary)_7%,transparent)_1px,transparent_1px),linear-gradient(90deg,color-mix(in_oklab,var(--primary)_7%,transparent)_1px,transparent_1px)]"
+    >
       <Card className="w-full max-w-sm border-t-4 border-t-primary shadow-lg">
         <CardHeader>
-          <div className="mb-1 flex size-11 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-indigo-400 text-primary-foreground shadow-sm">
+          <div className="mb-1 flex size-11 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-chart-5 text-primary-foreground shadow-sm">
             <ShieldCheck className="size-5" />
           </div>
           <CardTitle className="text-xl">Sistema de Qualidade</CardTitle>

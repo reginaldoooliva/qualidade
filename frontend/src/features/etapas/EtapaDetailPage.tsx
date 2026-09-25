@@ -20,13 +20,6 @@ import { EtapaFormDialog } from "@/features/etapas/EtapaFormDialog"
 import { usePeca } from "@/features/pecas/api"
 import type { Caracteristica } from "@/types/api"
 
-const INSTRUMENTO_LABEL: Record<string, string> = {
-  paquimetro: "Paquímetro",
-  micrometro: "Micrômetro",
-  relogio_comparador: "Relógio comparador",
-  outro: "Outro",
-}
-
 export function EtapaDetailPage() {
   const { pecaId, etapaId } = useParams<{ pecaId: string; etapaId: string }>()
   const pecaIdNum = Number(pecaId)
@@ -128,7 +121,7 @@ export function EtapaDetailPage() {
                   <TableCell>{c.lie.toFixed(c.casas_decimais)}</TableCell>
                   <TableCell>{c.lse.toFixed(c.casas_decimais)}</TableCell>
                   <TableCell>{c.unidade}</TableCell>
-                  <TableCell>{c.instrumento ? INSTRUMENTO_LABEL[c.instrumento] : "—"}</TableCell>
+                  <TableCell>{c.tipo_instrumento?.nome ?? "—"}</TableCell>
                   <TableCell>
                     <Badge variant={c.status === "ativo" ? "default" : "secondary"}>
                       {c.status === "ativo" ? "Ativa" : "Inativa"}

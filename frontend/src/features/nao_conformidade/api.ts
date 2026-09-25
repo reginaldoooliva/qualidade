@@ -3,8 +3,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 import type {
   AbrirNCPayload,
+  AcaoDepartamental,
+  AdicionarAcaoDepartamentalPayload,
+  ConcluirAcaoDepartamentalPayload,
   IndicadoresNC,
   NaoConformidadeDetalhe,
+  NaoConformidadeFoto,
   NaoConformidadeListItem,
   StatusNC,
   TratarNCPayload,
@@ -72,6 +76,23 @@ export function useAbrirNC() {
   })
 }
 
+export function useUploadFotosNC() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ ncId, arquivos }: { ncId: number; arquivos: File[] }) => {
+      const formData = new FormData()
+      arquivos.forEach((arquivo) => formData.append("arquivos", arquivo))
+      const { data } = await apiClient.post<NaoConformidadeFoto[]>(
+        `/nao-conformidades/${ncId}/fotos`,
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      )
+      return data
+    },
+    onSuccess: (_data, { ncId }) => queryClient.invalidateQueries({ queryKey: ["nao-conformidades", ncId] }),
+  })
+}
+
 export function useTratarNC(ncId: number) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -89,13 +110,56 @@ export function useTratarNC(ncId: number) {
 export function useEncerrarNC(ncId: number) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async () => {
-      const { data } = await apiClient.post<NaoConformidadeDetalhe>(`/nao-conformidades/${ncId}/encerrar`)
+    mutationFn: async (params: { ignorarPendencias?: boolean } = {}) => {
+      const { data } = await apiClient.post<NaoConformidadeDetalhe>(`/nao-conformidades/${ncId}/encerrar`, null, {
+        params: { ignorar_pendencias: params.ignorarPendencias },
+      })
       return data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["nao-conformidades", ncId] })
       queryClient.invalidateQueries({ queryKey: ["nao-conformidades", "indicadores"] })
+    },
+  })
+}
+
+export function useAdicionarAcaoDepartamental(ncId: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: AdicionarAcaoDepartamentalPayload) => {
+      const { data } = await apiClient.post<AcaoDepartamental>(
+        `/nao-conformidades/${ncId}/acoes-departamentais`,
+        payload
+      )
+      return data
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["nao-conformidades", ncId] }),
+  })
+}
+
+export function useRemoverAcaoDepartamental(ncId: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (acaoId: number) => {
+      await apiClient.delete(`/nao-conformidades/${ncId}/acoes-departamentais/${acaoId}`)
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["nao-conformidades", ncId] }),
+  })
+}
+
+export function useConcluirAcaoDepartamental(ncId: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ acaoId, ...payload }: { acaoId: number } & ConcluirAcaoDepartamentalPayload) => {
+      const { data } = await apiClient.patch<AcaoDepartamental>(
+        `/nao-conformidades/${ncId}/acoes-departamentais/${acaoId}/concluir`,
+        payload
+      )
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["nao-conformidades", ncId] })
+      queryClient.invalidateQueries({ queryKey: ["acoes-departamentais"] })
     },
   })
 }

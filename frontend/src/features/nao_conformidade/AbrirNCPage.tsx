@@ -4,6 +4,7 @@ import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -14,13 +15,23 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { useAbrirNC } from "@/features/nao_conformidade/api"
+import { FotoUploadInput } from "@/components/FotoUploadInput"
 import { useCaracteristicasByEtapa } from "@/features/caracteristicas/api"
 import { useEtapasByPeca } from "@/features/etapas/api"
+import { useFornecedores } from "@/features/fornecedores/api"
+import { useMaquinas } from "@/features/maquinas/api"
+import { useAbrirNC, useUploadFotosNC } from "@/features/nao_conformidade/api"
 import { usePeca } from "@/features/pecas/api"
 import { PecaBuscaInput } from "@/features/pecas/PecaBuscaInput"
+import { useUsuarios } from "@/features/usuarios/api"
 import { getApiError } from "@/lib/api-client"
-import type { ClassificacaoNC, OrigemNC, PecaListItem } from "@/types/api"
+import type { ClassificacaoNC, DeteccaoNC, OrigemNC, PecaListItem, TipoNC } from "@/types/api"
+
+const TIPO_LABEL: Record<TipoNC, string> = {
+  processo: "Processo interno",
+  fornecedor: "Recebimento de fornecedor",
+  cliente: "Devolução de cliente",
+}
 
 const CLASSIFICACAO_LABEL: Record<ClassificacaoNC, string> = {
   critica: "Crítica",
@@ -35,6 +46,12 @@ const ORIGEM_LABEL: Record<OrigemNC, string> = {
   instrumento: "Instrumento de medição",
   mao_de_obra: "Mão de obra",
   outro: "Outro",
+}
+
+const DETECCAO_LABEL: Record<DeteccaoNC, string> = {
+  interno: "Interno",
+  cliente: "Cliente",
+  fornecedor: "Fornecedor",
 }
 
 export function AbrirNCPage() {
@@ -58,6 +75,8 @@ export function AbrirNCPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pecaPrefetch])
+
+  const [tipo, setTipo] = useState<TipoNC>("processo")
 
   const { data: etapas } = useEtapasByPeca(peca?.id)
   const [etapaId, setEtapaId] = useState<string>("")
@@ -83,15 +102,53 @@ export function AbrirNCPage() {
   const [quantidade, setQuantidade] = useState("1")
   const [classificacao, setClassificacao] = useState<ClassificacaoNC | "">("")
   const [origem, setOrigem] = useState<OrigemNC | "">("")
+  const [modoFalha, setModoFalha] = useState("")
+  const [fotos, setFotos] = useState<File[]>([])
+
+  // Tipo = processo
+  const { data: maquinas } = useMaquinas()
+  const maquinasAtivas = (maquinas ?? []).filter((m) => m.status === "ativo")
+  const { data: usuarios } = useUsuarios()
+  const [maquinaId, setMaquinaId] = useState<string>("")
+  const [operadoresIds, setOperadoresIds] = useState<number[]>([])
+  const [setup, setSetup] = useState(false)
+  const [deteccao, setDeteccao] = useState<DeteccaoNC | "">("")
+
+  // Tipo = fornecedor
+  const { data: fornecedores } = useFornecedores()
+  const fornecedoresAtivos = (fornecedores ?? []).filter((f) => f.status === "ativo")
+  const [fornecedorId, setFornecedorId] = useState<string>("")
+  const [numeroNfEntrada, setNumeroNfEntrada] = useState("")
+
+  // Tipo = cliente
+  const [cliente, setCliente] = useState("")
+  const [vendedor, setVendedor] = useState("")
+  const [numeroNf, setNumeroNf] = useState("")
+  const [dataEmissaoNf, setDataEmissaoNf] = useState("")
 
   const abrirNC = useAbrirNC()
+  const uploadFotos = useUploadFotosNC()
 
-  const pronto = !!peca && descricao.trim() !== "" && Number(quantidade) > 0 && !!classificacao && !!origem
+  const pronto =
+    !!peca &&
+    descricao.trim() !== "" &&
+    Number(quantidade) > 0 &&
+    !!classificacao &&
+    !!origem &&
+    (tipo !== "fornecedor" || !!fornecedorId) &&
+    (tipo !== "cliente" || cliente.trim() !== "")
+
+  function toggleOperador(usuarioId: number, marcado: boolean) {
+    setOperadoresIds((atual) =>
+      marcado ? [...atual, usuarioId] : atual.filter((id) => id !== usuarioId)
+    )
+  }
 
   function handleSubmit() {
     if (!peca || !classificacao || !origem) return
     abrirNC.mutate(
       {
+        tipo,
         peca_id: peca.id,
         etapa_id: etapaId ? Number(etapaId) : undefined,
         caracteristica_id: caracteristicaId ? Number(caracteristicaId) : undefined,
@@ -101,9 +158,27 @@ export function AbrirNCPage() {
         quantidade_afetada: Number(quantidade),
         classificacao,
         origem,
+        modo_falha: modoFalha || undefined,
+        deteccao: tipo === "processo" && deteccao ? deteccao : undefined,
+        maquina_id: tipo === "processo" && maquinaId ? Number(maquinaId) : undefined,
+        operadores_ids: tipo === "processo" ? operadoresIds : undefined,
+        setup: tipo === "processo" ? setup : undefined,
+        fornecedor_id: tipo === "fornecedor" ? Number(fornecedorId) : undefined,
+        numero_nf_entrada: tipo === "fornecedor" ? numeroNfEntrada || undefined : undefined,
+        cliente: tipo === "cliente" ? cliente : undefined,
+        vendedor: tipo === "cliente" ? vendedor || undefined : undefined,
+        numero_nf: tipo === "cliente" ? numeroNf || undefined : undefined,
+        data_emissao_nf: tipo === "cliente" ? dataEmissaoNf || undefined : undefined,
       },
       {
-        onSuccess: (nc) => {
+        onSuccess: async (nc) => {
+          if (fotos.length > 0) {
+            try {
+              await uploadFotos.mutateAsync({ ncId: nc.id, arquivos: fotos })
+            } catch {
+              toast.error("RNC aberta, mas houve falha ao enviar as fotos. Tente anexar novamente na tela da RNC.")
+            }
+          }
           toast.success(`RNC ${nc.numero_rnc} aberta`)
           navigate(`/nao-conformidades/${nc.id}`)
         },
@@ -118,17 +193,37 @@ export function AbrirNCPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">1. Peça</CardTitle>
+          <CardTitle className="text-base">1. Tipo de RNC</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Select value={tipo} onValueChange={(v) => setTipo((v as TipoNC) ?? "processo")} items={TIPO_LABEL}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(TIPO_LABEL).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">2. Peça</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <PecaBuscaInput value={peca} onChange={setPeca} />
         </CardContent>
       </Card>
 
-      {peca && (
+      {peca && tipo === "processo" && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">2. Etapa e característica (opcional)</CardTitle>
+            <CardTitle className="text-base">3. Etapa e característica (opcional)</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
@@ -169,10 +264,137 @@ export function AbrirNCPage() {
         </Card>
       )}
 
+      {peca && tipo === "processo" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">4. Máquina e operador(es) (opcional)</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Máquina</Label>
+                <Select
+                  value={maquinaId}
+                  onValueChange={(v) => setMaquinaId(v ?? "")}
+                  items={Object.fromEntries(maquinasAtivas.map((m) => [String(m.id), m.descricao]))}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Nenhuma" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {maquinasAtivas.map((m) => (
+                      <SelectItem key={m.id} value={String(m.id)}>
+                        {m.codigo} — {m.descricao}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Detecção</Label>
+                <Select
+                  value={deteccao}
+                  onValueChange={(v) => setDeteccao((v as DeteccaoNC) ?? "")}
+                  items={DETECCAO_LABEL}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Onde foi encontrado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(DETECCAO_LABEL).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Operador(es) envolvido(s)</Label>
+              <div className="flex flex-wrap gap-x-4 gap-y-2 rounded-md border p-3">
+                {(usuarios ?? []).map((u) => (
+                  <label key={u.id} className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={operadoresIds.includes(u.id)}
+                      onCheckedChange={(marcado) => toggleOperador(u.id, marcado === true)}
+                    />
+                    {u.nome}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={setup} onCheckedChange={(v) => setSetup(v === true)} />
+              Ocorreu durante troca de setup
+            </label>
+          </CardContent>
+        </Card>
+      )}
+
+      {peca && tipo === "fornecedor" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">3. Fornecedor</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>Fornecedor</Label>
+              <Select
+                value={fornecedorId}
+                onValueChange={(v) => setFornecedorId(v ?? "")}
+                items={Object.fromEntries(fornecedoresAtivos.map((f) => [String(f.id), f.nome]))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  {fornecedoresAtivos.map((f) => (
+                    <SelectItem key={f.id} value={String(f.id)}>
+                      {f.codigo} — {f.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Nº da NF de entrada</Label>
+              <Input value={numeroNfEntrada} onChange={(e) => setNumeroNfEntrada(e.target.value)} />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {peca && tipo === "cliente" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">3. Cliente</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>Cliente</Label>
+              <Input value={cliente} onChange={(e) => setCliente(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Vendedor</Label>
+              <Input value={vendedor} onChange={(e) => setVendedor(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Nº da NF</Label>
+              <Input value={numeroNf} onChange={(e) => setNumeroNf(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Data de emissão</Label>
+              <Input type="date" value={dataEmissaoNf} onChange={(e) => setDataEmissaoNf(e.target.value)} />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {peca && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">3. Problema</CardTitle>
+            <CardTitle className="text-base">{tipo === "processo" ? "5" : "4"}. Problema</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="space-y-1.5">
@@ -223,6 +445,18 @@ export function AbrirNCPage() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Modo de falha (opcional)</Label>
+              <Input
+                placeholder="Ex.: trinca, rebarba, fora de medida..."
+                value={modoFalha}
+                onChange={(e) => setModoFalha(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Fotos</Label>
+              <FotoUploadInput arquivos={fotos} onChange={setFotos} />
             </div>
           </CardContent>
         </Card>

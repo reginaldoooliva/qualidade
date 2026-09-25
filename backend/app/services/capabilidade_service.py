@@ -104,7 +104,7 @@ def analisar(
                 "caracteristica_id": caracteristica.id,
                 "nome": caracteristica.nome,
                 "unidade": caracteristica.unidade,
-                "instrumento": caracteristica.instrumento,
+                "instrumento_nome": caracteristica.tipo_instrumento.nome if caracteristica.tipo_instrumento else None,
                 "casas_decimais": caracteristica.casas_decimais,
                 "nominal": float(caracteristica.nominal),
                 "lie": caracteristica.lie,

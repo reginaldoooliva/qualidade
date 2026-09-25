@@ -1,7 +1,16 @@
-export type Perfil = "operador" | "analista_qualidade" | "gestor_qualidade"
+export type Perfil = "gestor_qualidade" | "analista_qualidade" | "inspetor" | "operador"
 export type StatusCadastro = "ativo" | "inativo"
 export type UnidadeMedida = "mm" | "cm" | "polegada"
-export type InstrumentoMedicao = "paquimetro" | "micrometro" | "relogio_comparador" | "outro"
+
+export interface Departamento {
+  id: number
+  nome: string
+  status: StatusCadastro
+}
+
+export interface DepartamentoFormValues {
+  nome: string
+}
 
 export interface Usuario {
   id: number
@@ -9,6 +18,34 @@ export interface Usuario {
   login: string
   perfil: Perfil
   status: StatusCadastro
+  departamento_id: number | null
+  departamento: Departamento | null
+}
+
+export interface Fornecedor {
+  id: number
+  codigo: string
+  nome: string
+  cnpj: string | null
+  status: StatusCadastro
+}
+
+export interface FornecedorFormValues {
+  codigo: string
+  nome: string
+  cnpj?: string | null
+}
+
+export interface Maquina {
+  id: number
+  codigo: string
+  descricao: string
+  status: StatusCadastro
+}
+
+export interface MaquinaFormValues {
+  codigo: string
+  descricao: string
 }
 
 export interface Peca {
@@ -54,6 +91,19 @@ export interface EtapaFormValues {
   freq_denominador: number
 }
 
+export interface TipoInstrumento {
+  id: number
+  nome: string
+  descricao_funcao: string | null
+  status: StatusCadastro
+  tem_imagem: boolean
+}
+
+export interface TipoInstrumentoFormValues {
+  nome: string
+  descricao_funcao?: string | null
+}
+
 export interface Caracteristica {
   id: number
   etapa_id: number
@@ -63,7 +113,8 @@ export interface Caracteristica {
   tol_superior: number
   tol_inferior: number
   unidade: UnidadeMedida
-  instrumento: InstrumentoMedicao | null
+  tipo_instrumento_id: number | null
+  tipo_instrumento: TipoInstrumento | null
   casas_decimais: number
   status: StatusCadastro
   lse: number
@@ -77,7 +128,7 @@ export interface CaracteristicaFormValues {
   tol_superior: number
   tol_inferior: number
   unidade: UnidadeMedida
-  instrumento?: InstrumentoMedicao | null
+  tipo_instrumento_id?: number | null
   casas_decimais: number
 }
 
@@ -164,7 +215,7 @@ export interface CaracteristicaCapabilidade {
   caracteristica_id: number
   nome: string
   unidade: UnidadeMedida
-  instrumento: InstrumentoMedicao | null
+  instrumento_nome: string | null
   casas_decimais: number
   nominal: number
   lie: number
@@ -238,8 +289,19 @@ export type DisposicaoNC =
   | "uso_como_esta"
   | "devolucao_fornecedor"
   | "reclassificacao"
+export type TipoNC = "fornecedor" | "processo" | "cliente"
+export type DeteccaoNC = "interno" | "cliente" | "fornecedor"
+
+export interface NaoConformidadeFoto {
+  id: number
+  nome_arquivo: string
+  content_type: string
+  tamanho_bytes: number
+  criado_em: string
+}
 
 export interface AbrirNCPayload {
+  tipo: TipoNC
   peca_id: number
   ordem_id?: number
   etapa_id?: number
@@ -249,6 +311,17 @@ export interface AbrirNCPayload {
   quantidade_afetada: number
   classificacao: ClassificacaoNC
   origem: OrigemNC
+  deteccao?: DeteccaoNC | null
+  modo_falha?: string | null
+  maquina_id?: number | null
+  operadores_ids?: number[]
+  setup?: boolean
+  fornecedor_id?: number | null
+  numero_nf_entrada?: string | null
+  cliente?: string | null
+  vendedor?: string | null
+  numero_nf?: string | null
+  data_emissao_nf?: string | null
 }
 
 export interface TratarNCPayload {
@@ -261,11 +334,22 @@ export interface TratarNCPayload {
 export interface NaoConformidade {
   id: number
   numero_rnc: string
+  tipo: TipoNC
+  deteccao: DeteccaoNC | null
+  modo_falha: string | null
+  setup: boolean
   peca_id: number
   ordem_id: number | null
   etapa_id: number | null
   caracteristica_id: number | null
   rodada_id: number | null
+  maquina_id: number | null
+  fornecedor_id: number | null
+  numero_nf_entrada: string | null
+  cliente: string | null
+  vendedor: string | null
+  numero_nf: string | null
+  data_emissao_nf: string | null
   descricao_problema: string
   quantidade_afetada: number
   classificacao: ClassificacaoNC
@@ -302,10 +386,49 @@ export interface PlanoAcaoResumo {
   ciclo: number
 }
 
+export type StatusAcaoDepartamental = "pendente" | "concluida"
+
+export interface AcaoDepartamental {
+  id: number
+  nc_id: number
+  departamento_id: number
+  departamento: Departamento
+  descricao: string
+  status: StatusAcaoDepartamental
+  observacao_conclusao: string | null
+  criado_por_id: number
+  criado_por_nome: string
+  concluido_por_id: number | null
+  concluido_por_nome: string | null
+  concluido_em: string | null
+  criado_em: string
+}
+
+export interface AcaoDepartamentalListItem extends AcaoDepartamental {
+  numero_rnc: string
+  peca_codigo: string
+  peca_descricao: string
+}
+
+export interface AdicionarAcaoDepartamentalPayload {
+  departamento_id: number
+  descricao: string
+}
+
+export interface ConcluirAcaoDepartamentalPayload {
+  observacao: string
+}
+
 export interface NaoConformidadeDetalhe extends NaoConformidade {
   peca: Peca
   etapa: Etapa | null
   caracteristica: Caracteristica | null
+  maquina: Maquina | null
+  fornecedor: Fornecedor | null
+  operadores: { id: number; nome: string }[]
+  fotos: NaoConformidadeFoto[]
+  acoes_departamentais: AcaoDepartamental[]
+  tem_acao_departamental_pendente: boolean
   responsavel_analise: { id: number; nome: string } | null
   plano_acao_ativo_id: number | null
   tem_plano_aberto: boolean
@@ -390,6 +513,7 @@ export interface PlanoDeAcaoDetalhe {
   id: number
   nc_id: number
   numero_rnc: string
+  descricao_problema: string
   metodologia_causa_raiz: MetodologiaCausaRaiz
   conclusao_causa_raiz: string | null
   status: StatusPlanoAcao
@@ -423,4 +547,44 @@ export interface IndicadoresPlanoAcao {
   planos_atrasados: number
   acoes_atrasadas: number
   encerrados_no_mes: number
+}
+
+// ---- Depósito da Qualidade ----
+
+export type StatusBloqueioDeposito = "bloqueado" | "liberado"
+
+export interface BloqueioDeposito {
+  id: number
+  peca_id: number
+  peca: Peca
+  nao_conformidade_id: number | null
+  motivo: string
+  caracteristica_atencao: string | null
+  cliente: string | null
+  status: StatusBloqueioDeposito
+  criado_por_id: number
+  criado_por_nome: string
+  liberado_por_id: number | null
+  liberado_por_nome: string | null
+  data_liberacao: string | null
+  observacao_liberacao: string | null
+  tem_foto: boolean
+  criado_em: string
+}
+
+export interface PecaComBloqueios {
+  peca: Peca
+  bloqueios: BloqueioDeposito[]
+}
+
+export interface CriarBloqueioPayload {
+  peca_id: number
+  motivo: string
+  caracteristica_atencao?: string | null
+  cliente?: string | null
+  nao_conformidade_id?: number | null
+}
+
+export interface LiberarBloqueioPayload {
+  observacao_liberacao: string
 }

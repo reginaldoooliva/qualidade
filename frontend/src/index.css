@@ -53,38 +53,38 @@ body {
 }
 
 :root {
-  --background: #f7f7fd;
-  --foreground: #29245e;
+  --background: #f5f7fa;
+  --foreground: #16283a;
   --card: #ffffff;
-  --card-foreground: #29245e;
+  --card-foreground: #16283a;
   --popover: #ffffff;
-  --popover-foreground: #29245e;
-  --primary: #4f46e5;
+  --popover-foreground: #16283a;
+  --primary: #1d4e89;
   --primary-foreground: #ffffff;
-  --secondary: #eef2ff;
-  --secondary-foreground: #3730a3;
-  --muted: #f1f0fb;
-  --muted-foreground: #5f5a86;
-  --accent: #e0e7ff;
-  --accent-foreground: #3730a3;
+  --secondary: #e7eef5;
+  --secondary-foreground: #1d4e89;
+  --muted: #eef2f6;
+  --muted-foreground: #52697f;
+  --accent: #e7eef5;
+  --accent-foreground: #1d4e89;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: #e4e1f5;
-  --input: #e4e1f5;
-  --ring: #4f46e5;
-  --chart-1: #4f46e5;
-  --chart-2: #059669;
-  --chart-3: #d97706;
-  --chart-4: #e11d48;
-  --chart-5: #0891b2;
+  --border: #dce4ec;
+  --input: #dce4ec;
+  --ring: #1d4e89;
+  --chart-1: #1d4e89;
+  --chart-2: #2e9b6f;
+  --chart-3: #d98e2f;
+  --chart-4: #b24c6b;
+  --chart-5: #4a90d9;
   --radius: 0.625rem;
-  --sidebar: #fbfaff;
-  --sidebar-foreground: #29245e;
-  --sidebar-primary: #4f46e5;
+  --sidebar: #0f2a43;
+  --sidebar-foreground: #e7eef5;
+  --sidebar-primary: #24558a;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #eef2ff;
-  --sidebar-accent-foreground: #3730a3;
-  --sidebar-border: #e4e1f5;
-  --sidebar-ring: #4f46e5;
+  --sidebar-accent: #17385a;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: #4a90d9;
 
   /* Análise Cp/Cpk: paleta validada (dataviz skill) — status é fixo entre modos. */
   --analise-bar: #2a78d6;
@@ -97,37 +97,31 @@ body {
 }
 
 .dark {
-  --background: #100e1f;
-  --foreground: #ede9fe;
-  --card: #1a1830;
-  --card-foreground: #ede9fe;
-  --popover: #1a1830;
-  --popover-foreground: #ede9fe;
-  --primary: #818cf8;
-  --primary-foreground: #1e1b4b;
-  --secondary: #26224a;
-  --secondary-foreground: #c7d2fe;
-  --muted: #211f3d;
-  --muted-foreground: #a5a0c7;
-  --accent: #2e2a57;
-  --accent-foreground: #c7d2fe;
+  --background: #0b1826;
+  --foreground: #dce6f0;
+  --card: #12233a;
+  --card-foreground: #dce6f0;
+  --popover: #12233a;
+  --popover-foreground: #dce6f0;
+  --primary: #4a90d9;
+  --primary-foreground: #0b1826;
+  --secondary: #1b3350;
+  --secondary-foreground: #c7d9ec;
+  --muted: #16283f;
+  --muted-foreground: #93a9c0;
+  --accent: #1e3a5c;
+  --accent-foreground: #c7d9ec;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: color-mix(in oklab, #a5b4fc 15%, transparent);
-  --input: color-mix(in oklab, #a5b4fc 18%, transparent);
-  --ring: #818cf8;
-  --chart-1: #818cf8;
-  --chart-2: #34d399;
-  --chart-3: #fbbf24;
-  --chart-4: #fb7185;
-  --chart-5: #22d3ee;
-  --sidebar: #17152b;
-  --sidebar-foreground: #ede9fe;
-  --sidebar-primary: #4f46e5;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #26224a;
-  --sidebar-accent-foreground: #c7d2fe;
-  --sidebar-border: color-mix(in oklab, #a5b4fc 12%, transparent);
-  --sidebar-ring: #818cf8;
+  --border: color-mix(in oklab, #7ba7d4 15%, transparent);
+  --input: color-mix(in oklab, #7ba7d4 18%, transparent);
+  --ring: #4a90d9;
+  --chart-1: #4a90d9;
+  --chart-2: #3fbf8f;
+  --chart-3: #e0a855;
+  --chart-4: #c97992;
+  --chart-5: #6bb6f0;
+
+  /* Sidebar mantém o mesmo "chrome" azul profundo em ambos os temas — ver :root. */
 
   --analise-bar: #3987e5;
   --analise-limite: #d03b3b;

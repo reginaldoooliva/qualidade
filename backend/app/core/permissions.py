@@ -2,9 +2,10 @@ import enum
 
 
 class Perfil(str, enum.Enum):
-    OPERADOR = "operador"
-    ANALISTA_QUALIDADE = "analista_qualidade"
     GESTOR_QUALIDADE = "gestor_qualidade"
+    ANALISTA_QUALIDADE = "analista_qualidade"
+    INSPETOR = "inspetor"
+    OPERADOR = "operador"
 
 
 # Perfis com acesso de "Qualidade/Admin" — cadastros, reabertura de rodadas, tratamento de RNC/CAPA.

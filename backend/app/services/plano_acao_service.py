@@ -275,6 +275,7 @@ def to_list_item(plano: PlanoDeAcao) -> PlanoDeAcaoListItem:
 def to_detalhe(db: Session, plano: PlanoDeAcao) -> PlanoDeAcaoDetalhe:
     detalhe = PlanoDeAcaoDetalhe.model_validate(plano)
     detalhe.numero_rnc = plano.nao_conformidade.numero_rnc
+    detalhe.descricao_problema = plano.nao_conformidade.descricao_problema
     detalhe.acoes_corretivas = []
     for acao in plano.acoes_corretivas:
         item = AcaoCorretivaRead.model_validate(acao)

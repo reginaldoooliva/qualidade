@@ -106,17 +106,27 @@ export function PlanoAcaoDetailPage() {
         RNC {plano.numero_rnc}
       </Button>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-background p-4">
-        <div className="flex items-center gap-2">
-          <h1 className="text-xl font-semibold">Plano de Ação — {plano.numero_rnc}</h1>
-          <StatusPlanoBadge status={plano.status} />
-          {plano.ciclo > 1 && <Badge variant="outline">Ciclo {plano.ciclo}</Badge>}
+      <div className="flex flex-wrap items-start justify-between gap-3 rounded-md border bg-background p-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-semibold">Plano de Ação — {plano.numero_rnc}</h1>
+            <StatusPlanoBadge status={plano.status} />
+            {plano.ciclo > 1 && <Badge variant="outline">Ciclo {plano.ciclo}</Badge>}
+          </div>
+          {plano.descricao_problema && (
+            <p className="text-sm text-muted-foreground">{plano.descricao_problema}</p>
+          )}
         </div>
-        {podeEditar && plano.status === "em_andamento" && (
-          <Button onClick={handleAvancar} disabled={!podeAvancarVerificacao || avancarVerificacao.isPending}>
-            {avancarVerificacao.isPending ? "Avançando..." : "Avançar para verificação de eficácia"}
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => navigate(`/nao-conformidades/${plano.nc_id}`)}>
+            Ver RNC
           </Button>
-        )}
+          {podeEditar && plano.status === "em_andamento" && (
+            <Button onClick={handleAvancar} disabled={!podeAvancarVerificacao || avancarVerificacao.isPending}>
+              {avancarVerificacao.isPending ? "Avançando..." : "Avançar para verificação de eficácia"}
+            </Button>
+          )}
+        </div>
       </div>
       {plano.status === "em_andamento" && !podeAvancarVerificacao && podeEditar && (
         <p className="text-sm text-muted-foreground">

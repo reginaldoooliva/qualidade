@@ -1,6 +1,6 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.permissions import PERFIS_QUALIDADE
@@ -9,12 +9,16 @@ from app.models.nao_conformidade import ClassificacaoNC, OrigemNC, StatusNC
 from app.models.usuario import Usuario
 from app.schemas.nao_conformidade import (
     AbrirNCRequest,
+    AcaoDepartamentalConcluirRequest,
+    AcaoDepartamentalCreate,
+    AcaoDepartamentalRead,
     IndicadoresNC,
     NaoConformidadeDetalhe,
+    NaoConformidadeFotoRead,
     NaoConformidadeListItem,
     TratarNCRequest,
 )
-from app.services import nao_conformidade_service
+from app.services import acao_departamental_service, nao_conformidade_service
 
 router = APIRouter(prefix="/nao-conformidades", tags=["nao-conformidades"])
 
@@ -76,8 +80,70 @@ def tratar(
 @router.post("/{nc_id}/encerrar", response_model=NaoConformidadeDetalhe)
 def encerrar(
     nc_id: int,
+    ignorar_pendencias: bool = False,
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(require_role(*PERFIS_QUALIDADE)),
 ):
-    nc = nao_conformidade_service.encerrar(db, nc_id, usuario)
+    nc = nao_conformidade_service.encerrar(db, nc_id, usuario, ignorar_pendencias=ignorar_pendencias)
     return nao_conformidade_service.to_detalhe(db, nc)
+
+
+@router.post("/{nc_id}/acoes-departamentais", response_model=AcaoDepartamentalRead, status_code=201)
+def adicionar_acao_departamental(
+    nc_id: int,
+    dados: AcaoDepartamentalCreate,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_role(*PERFIS_QUALIDADE)),
+):
+    return acao_departamental_service.adicionar(db, nc_id, dados, usuario)
+
+
+@router.delete("/{nc_id}/acoes-departamentais/{acao_id}", status_code=204)
+def remover_acao_departamental(
+    nc_id: int,
+    acao_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(require_role(*PERFIS_QUALIDADE)),
+):
+    acao_departamental_service.remover(db, nc_id, acao_id, usuario)
+
+
+@router.patch("/{nc_id}/acoes-departamentais/{acao_id}/concluir", response_model=AcaoDepartamentalRead)
+def concluir_acao_departamental(
+    nc_id: int,
+    acao_id: int,
+    dados: AcaoDepartamentalConcluirRequest,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_user),
+):
+    return acao_departamental_service.concluir(db, nc_id, acao_id, dados, usuario)
+
+
+@router.post("/{nc_id}/fotos", response_model=list[NaoConformidadeFotoRead], status_code=201)
+async def anexar_fotos(
+    nc_id: int,
+    arquivos: list[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_user),
+):
+    fotos = []
+    for arquivo in arquivos:
+        conteudo = await arquivo.read()
+        foto = nao_conformidade_service.anexar_foto(
+            db, nc_id, arquivo.filename or "foto", arquivo.content_type or "", conteudo, usuario
+        )
+        fotos.append(foto)
+    return fotos
+
+
+@router.get("/{nc_id}/fotos/{foto_id}", dependencies=[Depends(get_current_user)])
+def obter_foto(nc_id: int, foto_id: int, db: Session = Depends(get_db)):
+    foto = nao_conformidade_service.obter_foto(db, nc_id, foto_id)
+    return Response(content=foto.conteudo, media_type=foto.content_type)
+
+
+@router.delete(
+    "/{nc_id}/fotos/{foto_id}", status_code=204, dependencies=[Depends(require_role(*PERFIS_QUALIDADE))]
+)
+def remover_foto(nc_id: int, foto_id: int, db: Session = Depends(get_db)):
+    nao_conformidade_service.remover_foto(db, nc_id, foto_id)

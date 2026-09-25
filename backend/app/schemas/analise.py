@@ -3,7 +3,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
 from app.models.coleta import StatusRodada
-from app.models.peca import InstrumentoMedicao, UnidadeMedida
+from app.models.peca import UnidadeMedida
 
 
 class OperadorResumo(BaseModel):
@@ -26,7 +26,7 @@ class CaracteristicaCapabilidade(BaseModel):
     caracteristica_id: int
     nome: str
     unidade: UnidadeMedida
-    instrumento: InstrumentoMedicao | None
+    instrumento_nome: str | None
     casas_decimais: int
     nominal: float
     lie: float

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { ArrowRight, Download, History } from "lucide-react"
+import { AlertTriangle, ArrowRight, Download, History, Plus, Trash2 } from "lucide-react"
 import { useNavigate, useParams } from "react-router-dom"
 import { toast } from "sonner"
 
@@ -7,6 +7,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import { ConcluirAcaoDialog } from "@/features/acoes_departamentais/ConcluirAcaoDialog"
+import { FotoAutenticada } from "@/components/FotoAutenticada"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -17,12 +20,20 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/features/auth/AuthContext"
-import { useEncerrarNC, useNaoConformidade, useTratarNC } from "@/features/nao_conformidade/api"
+import { useDepartamentos } from "@/features/departamentos/api"
+import {
+  useAdicionarAcaoDepartamental,
+  useConcluirAcaoDepartamental,
+  useEncerrarNC,
+  useNaoConformidade,
+  useRemoverAcaoDepartamental,
+  useTratarNC,
+} from "@/features/nao_conformidade/api"
 import { StatusNCBadge } from "@/features/nao_conformidade/StatusNCBadge"
 import { baixarRelatorioRnc } from "@/features/relatorios/api"
 import { useUsuarios } from "@/features/usuarios/api"
 import { getApiError } from "@/lib/api-client"
-import type { DisposicaoNC } from "@/types/api"
+import type { AcaoDepartamental, DisposicaoNC } from "@/types/api"
 
 const DISPOSICAO_LABEL: Record<DisposicaoNC, string> = {
   retrabalho: "Retrabalho",
@@ -32,6 +43,12 @@ const DISPOSICAO_LABEL: Record<DisposicaoNC, string> = {
   reclassificacao: "Reclassificação",
 }
 
+const TIPO_LABEL: Record<string, string> = {
+  processo: "Processo interno",
+  fornecedor: "Recebimento de fornecedor",
+  cliente: "Devolução de cliente",
+}
+const DETECCAO_LABEL: Record<string, string> = { interno: "Interno", cliente: "Cliente", fornecedor: "Fornecedor" }
 const CLASSIFICACAO_LABEL: Record<string, string> = { critica: "Crítica", maior: "Maior", menor: "Menor" }
 const ORIGEM_LABEL: Record<string, string> = {
   processo: "Processo",
@@ -51,21 +68,37 @@ export function NaoConformidadeDetailPage() {
 
   const { data: nc, isLoading } = useNaoConformidade(id)
   const { data: usuarios } = useUsuarios()
+  const { data: departamentos } = useDepartamentos()
   const tratarNC = useTratarNC(id)
   const encerrarNC = useEncerrarNC(id)
+  const adicionarAcaoDepartamental = useAdicionarAcaoDepartamental(id)
+  const removerAcaoDepartamental = useRemoverAcaoDepartamental(id)
+  const concluirAcaoDepartamental = useConcluirAcaoDepartamental(id)
 
   const [causaPreliminar, setCausaPreliminar] = useState("")
   const [disposicao, setDisposicao] = useState<string>("")
   const [responsavelId, setResponsavelId] = useState<string>("")
   const [necessitaPlano, setNecessitaPlano] = useState(false)
   const [exportando, setExportando] = useState(false)
+  const [avisoPendencia, setAvisoPendencia] = useState(false)
+  const [novoDepartamentoId, setNovoDepartamentoId] = useState("")
+  const [novaDescricaoTratativa, setNovaDescricaoTratativa] = useState("")
+  const [acaoParaConcluir, setAcaoParaConcluir] = useState<AcaoDepartamental | null>(null)
 
   useEffect(() => {
     if (nc) {
       setCausaPreliminar(nc.causa_raiz_preliminar ?? "")
       setDisposicao(nc.disposicao ?? "")
-      setResponsavelId(nc.responsavel_analise_id ? String(nc.responsavel_analise_id) : "")
+      setResponsavelId(
+        nc.responsavel_analise_id ? String(nc.responsavel_analise_id) : usuario ? String(usuario.id) : ""
+      )
       setNecessitaPlano(nc.necessita_plano_acao)
+    }
+  }, [nc, usuario])
+
+  useEffect(() => {
+    if (nc && !nc.tem_acao_departamental_pendente) {
+      setAvisoPendencia(false)
     }
   }, [nc])
 
@@ -92,11 +125,65 @@ export function NaoConformidadeDetailPage() {
     )
   }
 
-  function handleEncerrar() {
-    encerrarNC.mutate(undefined, {
-      onSuccess: () => toast.success("RNC encerrada"),
+  function handleEncerrar(ignorarPendencias = false) {
+    encerrarNC.mutate(
+      { ignorarPendencias },
+      {
+        onSuccess: () => {
+          toast.success("RNC encerrada")
+          setAvisoPendencia(false)
+        },
+        onError: (error) => {
+          const apiError = getApiError(error)
+          if (apiError.code === "ACOES_DEPARTAMENTAIS_PENDENTES") {
+            setAvisoPendencia(true)
+          } else {
+            toast.error(apiError.detail)
+          }
+        },
+      }
+    )
+  }
+
+  function handleAdicionarAcaoDepartamental() {
+    if (!novoDepartamentoId || !novaDescricaoTratativa.trim()) return
+    adicionarAcaoDepartamental.mutate(
+      { departamento_id: Number(novoDepartamentoId), descricao: novaDescricaoTratativa },
+      {
+        onSuccess: () => {
+          toast.success("Tratativa departamental adicionada")
+          setNovoDepartamentoId("")
+          setNovaDescricaoTratativa("")
+        },
+        onError: (error) => toast.error(getApiError(error).detail),
+      }
+    )
+  }
+
+  function handleRemoverAcaoDepartamental(acaoId: number) {
+    removerAcaoDepartamental.mutate(acaoId, {
+      onSuccess: () => toast.success("Tratativa removida"),
       onError: (error) => toast.error(getApiError(error).detail),
     })
+  }
+
+  function handleConcluirAcaoDepartamental(observacao: string) {
+    if (!acaoParaConcluir) return
+    concluirAcaoDepartamental.mutate(
+      { acaoId: acaoParaConcluir.id, observacao },
+      {
+        onSuccess: () => {
+          toast.success("Tratativa concluída")
+          setAcaoParaConcluir(null)
+        },
+        onError: (error) => toast.error(getApiError(error).detail),
+      }
+    )
+  }
+
+  function podeConcluirAcao(acao: AcaoDepartamental): boolean {
+    if (podeTratar) return true
+    return !!usuario?.departamento_id && usuario.departamento_id === acao.departamento_id
   }
 
   async function handleExportar() {
@@ -117,6 +204,7 @@ export function NaoConformidadeDetailPage() {
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-semibold">{nc.numero_rnc}</h1>
             <StatusNCBadge status={nc.status} />
+            <Badge variant="outline">{TIPO_LABEL[nc.tipo]}</Badge>
             {nc.tem_plano_aberto && (
               <Badge variant="outline" className="border-amber-400 text-amber-700">
                 Plano de Ação ainda em aberto
@@ -127,6 +215,8 @@ export function NaoConformidadeDetailPage() {
             {nc.peca.codigo} — {nc.peca.descricao}
             {nc.etapa && ` · Etapa ${nc.etapa.numero_etapa}`}
             {nc.caracteristica && ` · ${nc.caracteristica.nome}`}
+            {nc.fornecedor && ` · Fornecedor: ${nc.fornecedor.nome}`}
+            {nc.cliente && ` · Cliente: ${nc.cliente}`}
           </p>
         </div>
         <div className="flex gap-2">
@@ -135,12 +225,24 @@ export function NaoConformidadeDetailPage() {
             {exportando ? "Gerando..." : "Exportar PDF"}
           </Button>
           {podeTratar && nc.status === "em_tratamento" && (
-            <Button onClick={handleEncerrar} disabled={encerrarNC.isPending}>
+            <Button onClick={() => handleEncerrar(false)} disabled={encerrarNC.isPending}>
               {encerrarNC.isPending ? "Encerrando..." : "Encerrar RNC"}
             </Button>
           )}
         </div>
       </div>
+
+      {avisoPendencia && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-400 bg-amber-50 p-3 text-sm text-amber-900">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="size-4 shrink-0" />
+            Ainda há tratativa(s) departamental(is) pendente(s). Conclua-as ou encerre mesmo assim.
+          </div>
+          <Button size="sm" variant="outline" onClick={() => handleEncerrar(true)} disabled={encerrarNC.isPending}>
+            Encerrar mesmo assim
+          </Button>
+        </div>
+      )}
 
       <Card>
         <CardHeader>
@@ -170,6 +272,82 @@ export function NaoConformidadeDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      {(nc.maquina || nc.operadores.length > 0 || nc.modo_falha || nc.deteccao || nc.numero_nf_entrada || nc.numero_nf) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Contexto</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+            {nc.deteccao && (
+              <div>
+                <div className="text-xs text-muted-foreground">Detecção</div>
+                <div className="font-medium">{DETECCAO_LABEL[nc.deteccao]}</div>
+              </div>
+            )}
+            {nc.maquina && (
+              <div>
+                <div className="text-xs text-muted-foreground">Máquina</div>
+                <div className="font-medium">{nc.maquina.codigo} — {nc.maquina.descricao}</div>
+              </div>
+            )}
+            {nc.operadores.length > 0 && (
+              <div>
+                <div className="text-xs text-muted-foreground">Operador(es)</div>
+                <div className="font-medium">{nc.operadores.map((o) => o.nome).join(", ")}</div>
+              </div>
+            )}
+            {nc.setup && (
+              <div>
+                <div className="text-xs text-muted-foreground">Setup</div>
+                <div className="font-medium">Ocorreu durante troca de setup</div>
+              </div>
+            )}
+            {nc.modo_falha && (
+              <div>
+                <div className="text-xs text-muted-foreground">Modo de falha</div>
+                <div className="font-medium">{nc.modo_falha}</div>
+              </div>
+            )}
+            {nc.numero_nf_entrada && (
+              <div>
+                <div className="text-xs text-muted-foreground">Nº NF de entrada</div>
+                <div className="font-medium">{nc.numero_nf_entrada}</div>
+              </div>
+            )}
+            {nc.vendedor && (
+              <div>
+                <div className="text-xs text-muted-foreground">Vendedor</div>
+                <div className="font-medium">{nc.vendedor}</div>
+              </div>
+            )}
+            {nc.numero_nf && (
+              <div>
+                <div className="text-xs text-muted-foreground">Nº NF</div>
+                <div className="font-medium">{nc.numero_nf}</div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {nc.fotos.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Fotos</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-3">
+            {nc.fotos.map((foto) => (
+              <FotoAutenticada
+                key={foto.id}
+                url={`/nao-conformidades/${nc.id}/fotos/${foto.id}`}
+                alt={foto.nome_arquivo}
+                className="size-28 rounded-md border object-cover"
+              />
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -286,6 +464,100 @@ export function NaoConformidadeDetailPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle className="text-base">Tratativas por Departamento</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {nc.acoes_departamentais.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhuma tratativa departamental atribuída.</p>
+          ) : (
+            <div className="space-y-2">
+              {nc.acoes_departamentais.map((acao) => (
+                <div key={acao.id} className="rounded-md border p-3 text-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{acao.departamento.nome}</span>
+                        <Badge variant={acao.status === "concluida" ? "default" : "outline"}>
+                          {acao.status === "concluida" ? "Concluída" : "Pendente"}
+                        </Badge>
+                      </div>
+                      <p className="mt-1">{acao.descricao}</p>
+                      {acao.status === "concluida" && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Concluída por {acao.concluido_por_nome} em{" "}
+                          {acao.concluido_em && new Date(acao.concluido_em).toLocaleString("pt-BR")} —{" "}
+                          {acao.observacao_conclusao}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 gap-2">
+                      {acao.status === "pendente" && podeConcluirAcao(acao) && (
+                        <Button size="sm" onClick={() => setAcaoParaConcluir(acao)}>
+                          Concluir
+                        </Button>
+                      )}
+                      {acao.status === "pendente" && podeTratar && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleRemoverAcaoDepartamental(acao.id)}
+                          disabled={removerAcaoDepartamental.isPending}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {podeTratar && nc.status !== "encerrada" && (
+            <div className="flex flex-wrap items-end gap-2 border-t pt-3">
+              <div className="min-w-40 flex-1 space-y-1.5">
+                <Label>Departamento</Label>
+                <Select
+                  value={novoDepartamentoId}
+                  onValueChange={(v) => setNovoDepartamentoId(v ?? "")}
+                  items={Object.fromEntries((departamentos ?? []).map((d) => [String(d.id), d.nome]))}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(departamentos ?? [])
+                      .filter((d) => d.status === "ativo")
+                      .map((d) => (
+                        <SelectItem key={d.id} value={String(d.id)}>
+                          {d.nome}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="min-w-56 flex-[2] space-y-1.5">
+                <Label>Descrição da tratativa</Label>
+                <Input
+                  placeholder="Ex.: Dar baixa da peça sucateada na ordem"
+                  value={novaDescricaoTratativa}
+                  onChange={(e) => setNovaDescricaoTratativa(e.target.value)}
+                />
+              </div>
+              <Button
+                onClick={handleAdicionarAcaoDepartamental}
+                disabled={adicionarAcaoDepartamental.isPending || !novoDepartamentoId || !novaDescricaoTratativa.trim()}
+              >
+                <Plus className="size-4" />
+                Adicionar
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <History className="size-4" />
             Histórico
@@ -310,6 +582,13 @@ export function NaoConformidadeDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      <ConcluirAcaoDialog
+        open={!!acaoParaConcluir}
+        onOpenChange={(open) => !open && setAcaoParaConcluir(null)}
+        onConfirmar={handleConcluirAcaoDepartamental}
+        pendente={concluirAcaoDepartamental.isPending}
+      />
     </div>
   )
 }
